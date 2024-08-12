@@ -1,0 +1,101 @@
+<?php
+include "../components/includes/connection.php";
+
+// Check if the request method is POST
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    // Check if a file was uploaded
+    $imagePath = null;
+    if (isset($_FILES['image']) && $_FILES['image']['error'] == UPLOAD_ERR_OK) {
+        // File properties
+        $fileTmpPath = $_FILES['image']['tmp_name'];
+        $fileName = $_FILES['image']['name'];
+        $fileSize = $_FILES['image']['size'];
+        $fileType = $_FILES['image']['type'];
+        $fileExtension = pathinfo($fileName, PATHINFO_EXTENSION);
+
+        // Set the target directory for uploads
+        $uploadDir = '../uploads/';
+
+        // Create the directory if it doesn't exist
+        if (!file_exists($uploadDir)) {
+            mkdir($uploadDir, 0777, true);
+        }
+
+        // Generate a unique name for the file
+        $newFileName = uniqid('img_', true) . '.' . $fileExtension;
+
+        // Set the destination path for the file
+        $destPath = $uploadDir . $newFileName;
+
+        // Move the file to the server
+        if (move_uploaded_file($fileTmpPath, $destPath)) {
+            $imagePath = "uploads/" . $newFileName; // Store the image path for insertion into the database
+        } else {
+            echo json_encode(["status" => "failed", "error" => "Failed to upload image"]);
+            exit;
+        }
+    }
+
+
+
+    // Decode the JSON data sent from the form
+    // $data = json_decode(file_get_contents("php://input"), true);
+    // if ($data === null) {
+    //     echo json_encode(["status" => "failed", "error" => "Failed to decode JSON. Raw input: " . file_get_contents("php://input")]);
+    //     exit;
+    // }
+    // Extract data from the JSON object
+    // $examName = mysqli_real_escape_string($mysql_connection, $data['examName']);
+    $examName = $_POST['examName'];
+    $section = $_POST['section'];
+    $description = $_POST['paragraph'];
+    $question = $_POST['question'];
+    $choices = $_POST['choices'];
+    $correctAnswer = $_POST['correctAnswer'];
+    $explanation = $_POST['explanation'];
+    // $section = mysqli_real_escape_string($mysql_connection, $data['section']);
+    // $description = mysqli_real_escape_string($mysql_connection, $data['paragraph']);
+    // $question = mysqli_real_escape_string($mysql_connection, $data['question']);
+    // $choices = mysqli_real_escape_string($mysql_connection, json_encode($data['choices'])); // Convert choices array to JSON string
+    // $correctAnswer = mysqli_real_escape_string($mysql_connection, $data['correctAnswer']);
+    // $explanation = mysqli_real_escape_string($mysql_connection, $data['explanation']);
+
+    // Check if the question table exists
+    $checkTableQuery = "SHOW TABLES LIKE 'question_$examName'";
+    $tableResult = $mysql_connection->query($checkTableQuery);
+
+    // If the question table does not exist, create it
+    if ($tableResult->num_rows == 0) {
+        $createTableQuery = "CREATE TABLE question_$examName (
+            id INT(6) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            exam_id INT(6) UNSIGNED,
+            image_path VARCHAR(255) NULL,
+            description TEXT,
+            question TEXT,
+            choices TEXT,
+            correct_answer VARCHAR(255),
+            explanation TEXT,
+            section INT(11)
+        )";
+
+        if ($mysql_connection->query($createTableQuery) === TRUE) {
+            // echo json_encode(["newMsg" => "Table question_$examName created successfully"]);
+        } else {
+            echo json_encode(["status" => "failed", "error" => "Error creating table: " . $mysql_connection->error]);
+            exit;
+        }
+    }
+
+    // Insert data into the question table
+    $insertQuery = "INSERT INTO question_$examName (exam_id, image_path, description, question, choices, correct_answer, explanation, section)
+                    VALUES ('$examName', '$imagePath', '$description', '$question', '$choices', '$correctAnswer', '$explanation', '$section')";
+
+    if ($mysql_connection->query($insertQuery) === TRUE) {
+        echo json_encode(["status" => "success", "message" => "New record created successfully"]);
+    } else {
+        echo json_encode(["status" => "failed", "error" => "Error: " . $insertQuery . "<br>" . $mysql_connection->error]);
+    }
+
+    $mysql_connection->close();
+}
+?>
